@@ -1,0 +1,60 @@
+---
+title: "Log in and manage sessions in the frontend"
+description: "How the Angular frontend handles login, stores the JWT in localStorage, protects routes with AuthGuard, and re-authenticates on 401 responses."
+---
+
+The frontend uses a token-based authentication flow. You enter your credentials on the login page, receive a JWT from the backend, and the application automatically includes that token on every subsequent API request. Protected routes redirect unauthenticated users back to the login page.
+
+## Logging in
+
+Navigate to `http://localhost:4200`. The application immediately redirects you to `/mlogin/login`.
+
+<Steps>
+  <Step title="Enter your credentials">
+    Fill in your email address and password on the login form.
+  </Step>
+
+  <Step title="Submit the form">
+    The application sends a `POST` request to `/Api/Users/ValidateUser` on the backend with your credentials. If the request succeeds, the returned user object (including the JWT) is stored in `localStorage` under the key `user`.
+  </Step>
+
+  <Step title="Redirect to the application">
+    On successful login, you are redirected to `/mfacade/facade/minicio/inicio` — the application's main landing page.
+  </Step>
+</Steps>
+
+<Warning>
+  If you enter empty fields, the form is considered invalid and displays "No ha ingresado sus credenciales". If the backend rejects the credentials, you see "Los datos ingresados son erroneos". Both error messages disappear after four seconds.
+</Warning>
+
+## Route protection
+
+All routes under `/mfacade` are protected by `AuthGuard`. When you attempt to navigate to a protected route, the guard checks whether a user object exists in `localStorage`.
+
+- If the user is authenticated, navigation proceeds normally.
+- If no user is found, you are redirected to `/mlogin/login` and the original destination URL is preserved as a `returnUrl` query parameter.
+
+<Note>
+  Authentication state is held in memory as a reactive `BehaviorSubject`. It is initialized from `localStorage` when the application starts, so reloading the page does not log you out.
+</Note>
+
+## Automatic JWT attachment
+
+Every HTTP request sent to the backend API URL is intercepted and has the `Authorization` header added automatically:
+
+```
+Authorization: Bearer <your-token>
+```
+
+This applies only to requests that target the configured `apiUrl`. Requests to other origins are sent without modification.
+
+## Session expiry and the 401 dialog
+
+When the backend returns a `401` or `403` response while a user is still logged in, a confirmation dialog appears asking whether you want to remain in the session.
+
+- **Confirm (yes):** The application re-authenticates using the credentials stored in `localStorage` and reloads the page.
+- **Cancel (no):** The application calls logout, clears the stored user data, and redirects you to `/mlogin/login`.
+
+## Logging out
+
+To log out, trigger the logout action from within the application. This removes the `user` key from `localStorage` and navigates you back to `/mlogin/login`. After logout, any attempt to access a protected route redirects you to the login page.

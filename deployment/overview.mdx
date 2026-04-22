@@ -1,0 +1,154 @@
+---
+title: "Deploy the Purchase Manager application"
+description: "How to publish the .NET 7 Minimal API to Azure App Service and deploy the Angular 15 frontend to IIS, including production configuration settings."
+---
+
+The Purchase Manager application is composed of two independently deployable pieces: a .NET 7 Minimal API backend that connects to Azure SQL, and an Angular 15 single-page application that communicates with the API over HTTP. The backend targets `net7.0` and ships a standard ASP.NET Core web application, making it a natural fit for Azure App Service. The frontend includes a `web.config` with IIS URL-rewrite rules, so it deploys directly to IIS or to an Azure App Service static site with no extra configuration.
+
+<Warning>
+  Before deploying to production, replace the JWT signing key (`Auth:Jwt:Key`) and the database credentials in your connection string. The values in `appsettings.json` are development defaults and must not be used in a production environment.
+</Warning>
+
+## Backend deployment
+
+<Tabs>
+  <Tab title="Azure App Service">
+    <Steps>
+      <Step title="Publish the application">
+        Run `dotnet publish` from the `CleanArchitecture.MinimalApi` project directory to produce a self-contained release artifact.
+
+        ```bash
+        dotnet publish SolutionCleanArchitecture/CleanArchitecture.MinimalApi \
+          --configuration Release \
+          --output ./publish
+        ```
+      </Step>
+
+      <Step title="Create an Azure App Service">
+        Create a new App Service plan and web app targeting the **.NET 7** runtime stack. You can use the Azure CLI or the Azure portal.
+
+        ```bash
+        az appservice plan create \
+          --name purchase-manager-plan \
+          --resource-group my-resource-group \
+          --sku B1 \
+          --is-linux
+
+        az webapp create \
+          --name purchase-manager-api \
+          --resource-group my-resource-group \
+          --plan purchase-manager-plan \
+          --runtime "DOTNETCORE:7.0"
+        ```
+      </Step>
+
+      <Step title="Configure application settings">
+        Add the following application settings in the App Service **Configuration** blade (or via the CLI). These override the values in `appsettings.json` at runtime.
+
+        ```json
+        {
+          "ConnectionStrings__ConnectionSqlServer": "data source=tcp:<your-server>.database.windows.net,1433;initial catalog=BDEmpresa;user id=<user>;password=<password>;TrustServerCertificate=True;",
+          "APP_URL_ANGULAR": "https://<your-angular-domain>",
+          "Auth__Jwt__Issuer": "https://purchase-manager-api.azurewebsites.net/",
+          "Auth__Jwt__Audience": "https://purchase-manager-api.azurewebsites.net/",
+          "Auth__Jwt__Key": "<strong-random-secret-min-32-chars>",
+          "Auth__Jwt__TokenExpirationInMinutes": "20"
+        }
+        ```
+
+        <Note>
+          Use double underscores (`__`) to represent nested JSON keys in Azure App Service configuration. For example, `Auth:Jwt:Key` becomes `Auth__Jwt__Key`.
+        </Note>
+      </Step>
+
+      <Step title="Deploy the published output">
+        Deploy the `./publish` folder to the App Service using the Azure CLI.
+
+        ```bash
+        az webapp deploy \
+          --name purchase-manager-api \
+          --resource-group my-resource-group \
+          --src-path ./publish \
+          --type zip
+        ```
+      </Step>
+    </Steps>
+  </Tab>
+</Tabs>
+
+<Note>
+  The CORS policy in `Program.cs` reads the allowed origin from `APP_URL_ANGULAR`. Update this setting to match the exact production URL of your Angular frontend (including protocol and port if non-standard) — otherwise browsers will block API requests from the frontend.
+</Note>
+
+---
+
+## Frontend deployment
+
+<Tabs>
+  <Tab title="IIS / Static hosting">
+    <Steps>
+      <Step title="Install dependencies">
+        Install the Angular CLI and project dependencies if you have not already done so.
+
+        ```bash
+        npm install -g @angular/cli
+        npm install
+        ```
+      </Step>
+
+      <Step title="Update the production API URL">
+        Open `src/environments/environment.prod.ts` and set `apiUrl` to the URL of your deployed backend.
+
+        ```typescript
+        export const environment = {
+          production: true,
+          apiUrl: 'https://purchase-manager-api.azurewebsites.net'
+        };
+        ```
+      </Step>
+
+      <Step title="Build for production">
+        Run the Angular production build from the `crud-app-web` directory. The compiled output is written to `dist/crud-app-web/`.
+
+        ```bash
+        ng build --configuration production
+        ```
+      </Step>
+
+      <Step title="Deploy to IIS">
+        Copy the contents of `dist/crud-app-web/` to your IIS site root. The `web.config` included in the project is automatically copied into the `dist/` folder by the Angular build and configures IIS URL Rewrite to serve `index.html` for all non-file routes, which is required for Angular's client-side router.
+
+        ```bash
+        xcopy /E /I dist\crud-app-web C:\inetpub\wwwroot\purchase-manager
+        ```
+
+        Ensure the **URL Rewrite** module is installed on the IIS server. It is available from the IIS modules page or via the Web Platform Installer.
+      </Step>
+    </Steps>
+
+    <Tip>
+      When deploying to Azure App Service as a static frontend, enable **Static content** under the App Service configuration and point the physical path to `dist/crud-app-web`. The bundled `web.config` handles Angular routing automatically.
+    </Tip>
+  </Tab>
+</Tabs>
+
+---
+
+## Production configuration checklist
+
+Review these settings before going live:
+
+<CardGroup cols={2}>
+  <Card title="JWT secret key" icon="key">
+    Replace `Auth:Jwt:Key` with a strong random string of at least 32 characters. Never reuse the development key `clave_secreta_para_cifrado#2023`.
+  </Card>
+  <Card title="Database credentials" icon="database">
+    Use a dedicated SQL login with least-privilege permissions for the production database. Rotate the password after initial setup.
+  </Card>
+  <Card title="CORS origin" icon="globe">
+    Set `APP_URL_ANGULAR` to the exact production domain of your Angular app. Trailing slashes and port numbers matter.
+  </Card>
+  <Card title="JWT issuer and audience" icon="lock">
+    Update `Auth:Jwt:Issuer` and `Auth:Jwt:Audience` to match your production API base URL so token validation succeeds.
+  </Card>
+</CardGroup>

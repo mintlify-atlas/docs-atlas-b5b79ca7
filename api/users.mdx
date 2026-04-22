@@ -1,0 +1,101 @@
+---
+title: "Users endpoint — validate credentials"
+description: "POST /Api/Users/ValidateUser accepts email and password and returns a Users object with a signed JWT token valid for 20 minutes. No auth required."
+---
+
+The users group exposes a single endpoint: `POST /Api/Users/ValidateUser`. It accepts an email and password, verifies them against the database, and returns a `Users` object containing a signed JWT token. This is the **only unauthenticated endpoint** in the API — no `Authorization` header is needed.
+
+<Note>
+  All other endpoints require the token returned by this endpoint. See [Authentication](/api/authentication) for how to attach the token to requests and handle expiration.
+</Note>
+
+---
+
+## POST /Api/Users/ValidateUser
+
+### Request body
+
+<ParamField body="Email" type="string" required>
+  The email address associated with the account.
+</ParamField>
+
+<ParamField body="Password" type="string" required>
+  The account password in plain text. Credentials are validated server-side against the stored record.
+</ParamField>
+
+<CodeGroup>
+
+```bash cURL
+curl --request POST \
+  --url https://localhost:PORT/Api/Users/ValidateUser \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "email": "user@example.com",
+    "password": "yourpassword"
+  }'
+```
+
+```json Request body
+{
+  "email": "user@example.com",
+  "password": "yourpassword"
+}
+```
+
+</CodeGroup>
+
+### Response
+
+On success (`200 OK`), the full `Users` object is returned with the `Token` field populated. The token is a signed JWT valid for **20 minutes**.
+
+<ResponseField name="Id" type="integer">
+  Unique integer identifier for the user record.
+</ResponseField>
+
+<ResponseField name="Email" type="string">
+  The user's email address (mirrors the value submitted in the request).
+</ResponseField>
+
+<ResponseField name="FullName" type="string">
+  The user's full name as stored in the database.
+</ResponseField>
+
+<ResponseField name="DocumentNumber" type="string">
+  The user's national ID or document number.
+</ResponseField>
+
+<ResponseField name="Address" type="string">
+  The user's registered address.
+</ResponseField>
+
+<ResponseField name="PhoneNumber" type="string">
+  The user's phone number.
+</ResponseField>
+
+<ResponseField name="Token" type="string">
+  Signed JWT Bearer token. Include this value in the `Authorization: Bearer <token>` header for all subsequent requests. Expires 20 minutes after issuance.
+</ResponseField>
+
+```json 200 OK
+{
+  "id": 1,
+  "fullName": "Jane Smith",
+  "documentNumber": "12345678",
+  "email": "user@example.com",
+  "phoneNumber": "+1-555-0100",
+  "address": "123 Main Street",
+  "password": null,
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyQGV4YW1wbGUuY29tIiwianRpIjoiYWJjMTIzIiwiZXhwIjoxNjk5OTk5OTk5fQ.signature"
+}
+```
+
+### Error responses
+
+| Status | Condition |
+|--------|-----------|
+| `404 Not Found` | No account matches the provided email and password combination. |
+| `400 Bad Request` | An unhandled server exception occurred during credential validation. |
+
+<Warning>
+  A `404 Not Found` response does not distinguish between an unknown email and a wrong password. This is intentional — returning different errors for each case would leak information about which accounts exist.
+</Warning>

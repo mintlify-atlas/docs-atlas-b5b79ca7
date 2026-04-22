@@ -1,0 +1,102 @@
+---
+title: "Export purchases to PDF and Excel"
+description: "Generate a PDF or Excel file of the current purchase list directly in the browser using jsPDF and XLSX — no server round-trip required."
+---
+
+The purchase list page includes two export buttons that generate downloadable files from the data currently loaded in the table. Both exports run entirely in the browser using client-side libraries — no additional API call is made when you click either button.
+
+<Note>
+  The export reflects only the rows currently loaded in the purchase list. If you have applied a search filter, only the filtered results are included in the export.
+</Note>
+
+## PDF export
+
+Clicking **Exportar PDF** uses [jsPDF](https://github.com/parallax/jsPDF) together with the [jsPDF-AutoTable](https://github.com/simonbengtsson/jsPDF-AutoTable) plugin to produce a formatted table document.
+
+The generated file is named `ListaCompras.pdf`.
+
+**Columns included:**
+
+| Column | Source field |
+|--------|-------------|
+| id | `compra.id` |
+| numeroDocumento | `compra.numeroDocumento` |
+| razonSocial | `compra.razonSocial` |
+| total | `compra.total` |
+
+**Export code from `compra-list.component.ts`:**
+
+```typescript
+exportarPdf() {
+  const doc = new jspdf();
+  const head = [['id', 'numeroDocumento', 'razonSocial', 'total']];
+  const rows = this.data.map(item => [
+    item.id,
+    item.numeroDocumento,
+    item.razonSocial,
+    item.total
+  ]);
+  autoTable(doc, {
+    head: head,
+    body: rows,
+    didDrawCell: (rows) => {},
+  });
+  doc.save('ListaCompras.pdf');
+}
+```
+
+## Excel export
+
+Clicking **Descargar Excel** uses the [XLSX](https://github.com/SheetJS/sheetjs) library (SheetJS) to build a workbook in memory and immediately trigger a browser download.
+
+The generated file is named `ListaCompras.xlsx` and contains a single sheet called **Compras**.
+
+**Columns included:**
+
+| Column header | Source field |
+|--------------|-------------|
+| NumeroDocumento | `compra.numeroDocumento` |
+| RazonSocial | `compra.razonSocial` |
+| Total | `compra.total` |
+
+<Note>
+  The Excel export does not include the `id` column. If you need it, add `Id: compras.id` to the mapping object in `descargarExcel()`.
+</Note>
+
+**Export code from `compra-list.component.ts`:**
+
+```typescript
+descargarExcel() {
+  const datos = this.data.map(compras => {
+    return {
+      NumeroDocumento: compras.numeroDocumento,
+      RazonSocial: compras.razonSocial,
+      Total: compras.total
+    };
+  });
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.json_to_sheet(datos);
+  XLSX.utils.book_append_sheet(wb, ws, 'Compras');
+  XLSX.writeFile(wb, 'ListaCompras.xlsx');
+}
+```
+
+## Library versions
+
+The following packages from `package.json` power the export features:
+
+<CodeGroup>
+
+```json package.json (relevant entries)
+{
+  "jspdf": "^2.5.1",
+  "jspdf-autotable": "^3.5.28",
+  "xlsx": "^0.18.5"
+}
+```
+
+</CodeGroup>
+
+<Tip>
+  Both export functions operate on `this.data`, the in-memory array that backs the Material table. You can sort or filter the table before exporting and the file will reflect exactly what is displayed.
+</Tip>

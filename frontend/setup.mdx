@@ -1,0 +1,70 @@
+---
+title: "Set up the Angular 15 frontend"
+description: "Install npm dependencies, set the backend API URL in the environment file, and start the Angular 15 dev server to run the frontend application locally."
+---
+
+The frontend is an Angular 15 single-page application built with Angular Material. It provides a login screen, a paginated purchase list, and a purchase registration form that communicates with the .NET 7 backend API.
+
+## Prerequisites
+
+- Node.js 18 or later
+- Angular CLI 15 (`npm install -g @angular/cli@15`)
+- The backend API running and accessible (see the backend setup guide)
+
+## Installation
+
+<Steps>
+  <Step title="Navigate to the frontend directory">
+    From the repository root, move into the Angular project folder.
+
+    ```bash
+    cd crud-app-web
+    ```
+  </Step>
+
+  <Step title="Install dependencies">
+    Install all npm packages declared in `package.json`.
+
+    ```bash
+    npm install
+    ```
+
+    Key packages installed include Angular 15, Angular Material, `jspdf`, `jspdf-autotable`, and `xlsx`.
+  </Step>
+
+  <Step title="Set the API URL">
+    Open `src/environments/environment.development.ts` and set `apiUrl` to the address where your backend is listening.
+
+    ```typescript
+    export const environment = {
+      production: false,
+      apiUrl: "https://localhost:7271"
+    };
+    ```
+
+    <Note>
+      The production environment file (`src/environments/environment.ts`) points to the deployed Azure API. For local development, only `environment.development.ts` needs to be updated.
+    </Note>
+  </Step>
+
+  <Step title="Start the development server">
+    ```bash
+    npm start
+    ```
+
+    This runs `ng serve` under the hood and compiles the application in development mode with file watching enabled.
+  </Step>
+
+  <Step title="Open the application">
+    Navigate to [http://localhost:4200](http://localhost:4200) in your browser. You are redirected to the login page at `/mlogin/login`.
+  </Step>
+</Steps>
+
+## Available npm scripts
+
+| Script | Command | Description |
+|--------|---------|-------------|
+| `npm start` | `ng serve` | Start the dev server at port 4200 |
+| `npm run build` | `ng build` | Production build output to `dist/` |
+| `npm run watch` | `ng build --watch --configuration development` | Rebuild on file changes |
+| `npm test` | `ng test` | Run unit tests with Karma |

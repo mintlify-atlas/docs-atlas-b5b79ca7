@@ -1,0 +1,475 @@
+---
+title: "Purchase endpoints — CRUD operations"
+description: "Reference for the five purchase endpoints: POST Save, GET List, GET Detail/{id}, PUT Update, and DELETE Delete/{id}. All require a JWT Bearer token."
+---
+
+The purchase endpoints manage `Compra` (purchase) records and their associated `DetalleCompra` (line item) records. Every endpoint in this group requires a valid JWT Bearer token in the `Authorization` header. Obtain a token from [POST /Api/Users/ValidateUser](/api/authentication).
+
+<Warning>
+  All requests to `/Api/Purchase/*` without a valid `Authorization: Bearer <token>` header will return `401 Unauthorized`.
+</Warning>
+
+---
+
+## POST /Api/Purchase/Save
+
+Create a new purchase record together with one or more line items.
+
+### Request body
+
+<ParamField body="Id" type="integer" required default="0">
+  Must be `0` for new records. The API assigns and returns the generated ID.
+</ParamField>
+
+<ParamField body="NumeroDocumento" type="string">
+  Vendor or supplier document number.
+</ParamField>
+
+<ParamField body="RazonSocial" type="string">
+  Vendor or supplier business name.
+</ParamField>
+
+<ParamField body="Total" type="decimal">
+  Total purchase amount.
+</ParamField>
+
+<ParamField body="DetalleCompras" type="object[]" required>
+  Array of line items. At least one item is required.
+
+  <Expandable title="DetalleCompra properties">
+    <ParamField body="Id" type="integer" default="0">
+      Must be `0` for new line items.
+    </ParamField>
+    <ParamField body="IdCompra" type="integer">
+      Parent purchase ID. Can be omitted on create — the API links the item automatically.
+    </ParamField>
+    <ParamField body="Producto" type="string">
+      Product name or description.
+    </ParamField>
+    <ParamField body="Precio" type="decimal">
+      Unit price.
+    </ParamField>
+    <ParamField body="Cantidad" type="integer">
+      Quantity purchased.
+    </ParamField>
+    <ParamField body="Total" type="decimal">
+      Line total (`Precio × Cantidad`).
+    </ParamField>
+    <ParamField body="OrdenSecuencia" type="integer">
+      Display sequence order for the line item.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<CodeGroup>
+
+```bash cURL
+curl --request POST \
+  --url https://localhost:PORT/Api/Purchase/Save \
+  --header 'Authorization: Bearer <token>' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "id": 0,
+    "numeroDocumento": "PROV-001",
+    "razonSocial": "Acme Supplies S.A.",
+    "total": 250.00,
+    "detalleCompras": [
+      {
+        "id": 0,
+        "idCompra": 0,
+        "producto": "Widget A",
+        "precio": 100.00,
+        "cantidad": 2,
+        "total": 200.00,
+        "ordenSecuencia": 1
+      },
+      {
+        "id": 0,
+        "idCompra": 0,
+        "producto": "Widget B",
+        "precio": 50.00,
+        "cantidad": 1,
+        "total": 50.00,
+        "ordenSecuencia": 2
+      }
+    ]
+  }'
+```
+
+```json Request body
+{
+  "id": 0,
+  "numeroDocumento": "PROV-001",
+  "razonSocial": "Acme Supplies S.A.",
+  "total": 250.00,
+  "detalleCompras": [
+    {
+      "id": 0,
+      "producto": "Widget A",
+      "precio": 100.00,
+      "cantidad": 2,
+      "total": 200.00,
+      "ordenSecuencia": 1
+    }
+  ]
+}
+```
+
+</CodeGroup>
+
+### Response
+
+<ResponseField name="Resultado" type="string">
+  Contains the generated purchase ID and success code `1111`. Example: `"El id o codigo generado es : 42 - Codigo Respuesta:1111"`.
+</ResponseField>
+
+<ResponseField name="Descripcion" type="string">
+  `"Transaccion Exitosa"` on success.
+</ResponseField>
+
+```json 200 OK
+{
+  "resultado": "El id o codigo generado es : 42 - Codigo Respuesta:1111",
+  "descripcion": "Transaccion Exitosa"
+}
+```
+
+Returns `400 Bad Request` if the insert fails or an unhandled exception occurs.
+
+---
+
+## GET /Api/Purchase/List
+
+Search for purchases. Both query parameters are optional — omitting them returns all records.
+
+### Query parameters
+
+<ParamField query="numeroDocumento" type="string">
+  Filter by document number. Partial matches may be supported depending on the service implementation.
+</ParamField>
+
+<ParamField query="razonSocial" type="string">
+  Filter by business name.
+</ParamField>
+
+<CodeGroup>
+
+```bash cURL — all purchases
+curl --request GET \
+  --url 'https://localhost:PORT/Api/Purchase/List' \
+  --header 'Authorization: Bearer <token>'
+```
+
+```bash cURL — filtered
+curl --request GET \
+  --url 'https://localhost:PORT/Api/Purchase/List?numeroDocumento=PROV-001&razonSocial=Acme' \
+  --header 'Authorization: Bearer <token>'
+```
+
+</CodeGroup>
+
+### Response
+
+Returns an array of `Compra` objects.
+
+<ResponseField name="[]" type="object[]">
+  List of matching purchase records.
+
+  <Expandable title="Compra properties">
+    <ResponseField name="Id" type="integer">
+      Unique purchase identifier.
+    </ResponseField>
+    <ResponseField name="NumeroDocumento" type="string">
+      Supplier document number.
+    </ResponseField>
+    <ResponseField name="RazonSocial" type="string">
+      Supplier business name.
+    </ResponseField>
+    <ResponseField name="Total" type="decimal">
+      Total purchase amount.
+    </ResponseField>
+    <ResponseField name="DetalleCompras" type="object[]">
+      Associated line items (may be empty in list results).
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+```json 200 OK
+[
+  {
+    "id": 42,
+    "numeroDocumento": "PROV-001",
+    "razonSocial": "Acme Supplies S.A.",
+    "total": 250.00,
+    "detalleCompras": []
+  }
+]
+```
+
+Returns `404 Not Found` when the query produces no results.
+
+---
+
+## GET /Api/Purchase/Detail/{id}
+
+Retrieve all line items for a specific purchase, joined with header-level fields from the parent `Compra`.
+
+### Path parameters
+
+<ParamField path="id" type="integer" required>
+  The ID of the purchase whose line items you want to retrieve.
+</ParamField>
+
+<CodeGroup>
+
+```bash cURL
+curl --request GET \
+  --url https://localhost:PORT/Api/Purchase/Detail/42 \
+  --header 'Authorization: Bearer <token>'
+```
+
+</CodeGroup>
+
+### Response
+
+Returns an array of `DetalleComprasDto` objects — a flat projection that includes both purchase header and line-item fields.
+
+<ResponseField name="[]" type="object[]">
+  <Expandable title="DetalleComprasDto properties">
+    <ResponseField name="Id" type="integer">
+      Line item ID.
+    </ResponseField>
+    <ResponseField name="NumeroDocumento" type="string">
+      Supplier document number from the parent purchase.
+    </ResponseField>
+    <ResponseField name="RazonSocial" type="string">
+      Supplier business name from the parent purchase.
+    </ResponseField>
+    <ResponseField name="TotalCompra" type="decimal">
+      Total amount of the parent purchase.
+    </ResponseField>
+    <ResponseField name="IdCompra" type="integer">
+      Parent purchase ID.
+    </ResponseField>
+    <ResponseField name="OrdenSecuencia" type="integer">
+      Display sequence for this line item.
+    </ResponseField>
+    <ResponseField name="Cantidad" type="integer">
+      Quantity purchased.
+    </ResponseField>
+    <ResponseField name="Producto" type="string">
+      Product name or description.
+    </ResponseField>
+    <ResponseField name="Precio" type="decimal">
+      Unit price.
+    </ResponseField>
+    <ResponseField name="Total" type="decimal">
+      Line total.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+```json 200 OK
+[
+  {
+    "id": 1,
+    "numeroDocumento": "PROV-001",
+    "razonSocial": "Acme Supplies S.A.",
+    "totalCompra": 250.00,
+    "idCompra": 42,
+    "ordenSecuencia": 1,
+    "cantidad": 2,
+    "producto": "Widget A",
+    "precio": 100.00,
+    "total": 200.00
+  }
+]
+```
+
+Returns `404 Not Found` when no line items exist for the given ID.
+
+---
+
+## PUT /Api/Purchase/Update
+
+Update an existing purchase header and modify its line items. You can add new line items, update existing ones, and remove specific items in a single request.
+
+<Note>
+  This endpoint executes inside a database transaction. If any step fails the entire operation is rolled back.
+</Note>
+
+### Request body
+
+The body uses `PurchaseDto`, which extends `Compra` with an additional `EliminarDetalleCompra` list.
+
+<ParamField body="Id" type="integer" required>
+  ID of the purchase to update. Must be greater than `0`.
+</ParamField>
+
+<ParamField body="NumeroDocumento" type="string">
+  Updated supplier document number.
+</ParamField>
+
+<ParamField body="RazonSocial" type="string">
+  Updated supplier business name.
+</ParamField>
+
+<ParamField body="Total" type="decimal">
+  Updated total amount.
+</ParamField>
+
+<ParamField body="DetalleCompras" type="object[]">
+  Line items to save. Items with `Id = 0` are inserted as new records; items with an existing `Id` are updated.
+
+  <Expandable title="DetalleCompraDto properties">
+    <ParamField body="Id" type="integer" default="0">
+      `0` to insert a new item; existing ID to update.
+    </ParamField>
+    <ParamField body="IdCompra" type="integer">
+      Parent purchase ID.
+    </ParamField>
+    <ParamField body="Producto" type="string">
+      Product name.
+    </ParamField>
+    <ParamField body="Precio" type="decimal">
+      Unit price.
+    </ParamField>
+    <ParamField body="Cantidad" type="integer">
+      Quantity.
+    </ParamField>
+    <ParamField body="Total" type="decimal">
+      Line total.
+    </ParamField>
+    <ParamField body="OrdenSecuencia" type="integer">
+      Display sequence.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="EliminarDetalleCompra" type="object[]">
+  Line items to delete. Only items with `Id != 0` are removed.
+
+  <Expandable title="EliminarDetalleCompraDto properties">
+    <ParamField body="Id" type="integer" required>
+      ID of the line item to delete.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<CodeGroup>
+
+```bash cURL
+curl --request PUT \
+  --url https://localhost:PORT/Api/Purchase/Update \
+  --header 'Authorization: Bearer <token>' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "id": 42,
+    "numeroDocumento": "PROV-001",
+    "razonSocial": "Acme Supplies S.A.",
+    "total": 300.00,
+    "detalleCompras": [
+      {
+        "id": 0,
+        "idCompra": 42,
+        "producto": "Widget C",
+        "precio": 50.00,
+        "cantidad": 1,
+        "total": 50.00,
+        "ordenSecuencia": 3
+      }
+    ],
+    "eliminarDetalleCompra": [
+      { "id": 2 }
+    ]
+  }'
+```
+
+```json Request body
+{
+  "id": 42,
+  "numeroDocumento": "PROV-001",
+  "razonSocial": "Acme Supplies S.A.",
+  "total": 300.00,
+  "detalleCompras": [
+    {
+      "id": 0,
+      "idCompra": 42,
+      "producto": "Widget C",
+      "precio": 50.00,
+      "cantidad": 1,
+      "total": 50.00,
+      "ordenSecuencia": 3
+    }
+  ],
+  "eliminarDetalleCompra": [
+    { "id": 2 }
+  ]
+}
+```
+
+</CodeGroup>
+
+### Response
+
+<ResponseField name="Resultado" type="string">
+  Success code `1111` on success; error code `0000` on failure.
+</ResponseField>
+
+<ResponseField name="Descripcion" type="string">
+  `"Transaccion Exitosa"` on success; error description on failure.
+</ResponseField>
+
+```json 200 OK
+{
+  "resultado": "1111",
+  "descripcion": "Transaccion Exitosa"
+}
+```
+
+Returns `400 Bad Request` if the body is null or an exception is thrown.
+
+---
+
+## DELETE /Api/Purchase/Delete/{id}
+
+Delete a purchase and all of its line items. The line items are deleted first, then the parent purchase record.
+
+<Warning>
+  This operation is irreversible. All line items associated with the purchase are permanently removed.
+</Warning>
+
+### Path parameters
+
+<ParamField path="id" type="integer" required>
+  The ID of the purchase to delete.
+</ParamField>
+
+<CodeGroup>
+
+```bash cURL
+curl --request DELETE \
+  --url https://localhost:PORT/Api/Purchase/Delete/42 \
+  --header 'Authorization: Bearer <token>'
+```
+
+</CodeGroup>
+
+### Response
+
+<ResponseField name="Resultado" type="string">
+  Success code `1111` on success; error code `0000` on failure.
+</ResponseField>
+
+<ResponseField name="Descripcion" type="string">
+  `"Transaccion Exitosa"` on success; error description on failure.
+</ResponseField>
+
+```json 200 OK
+{
+  "resultado": "1111",
+  "descripcion": "Transaccion Exitosa"
+}
+```
+
+Returns `400 Bad Request` if the delete operation affects zero rows or an exception is thrown.

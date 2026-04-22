@@ -1,0 +1,158 @@
+---
+title: "Clean Architecture layers explained"
+description: "How the five projects map to Clean Architecture rings, enforce dependency rules, and wire together through the IoC container and Unit of Work pattern."
+---
+
+Clean Architecture organises code into concentric rings where inner rings define abstractions and outer rings provide implementations. Dependencies always point inward — the Domain layer knows nothing about EF Core, SQL Server, or HTTP. This separation makes business logic independently testable and keeps infrastructure swappable without touching domain or application code.
+
+## Layers
+
+<AccordionGroup>
+  <Accordion title="Domain — CleanArchitecture.Domain" icon="circle-dot" defaultOpen={true}>
+    The innermost ring. Contains plain C# classes with zero external dependencies.
+
+    **What lives here:**
+    - Entity models: `Compra`, `DetalleCompra`, `Users`
+    - Data transfer objects: `DetalleComprasDto`, `Error`
+    - Domain interfaces (consumed by Application)
+
+    This project is referenced by every other project but references nothing itself. That is the defining rule of the Domain layer.
+  </Accordion>
+
+  <Accordion title="Application — CleanArchitecture.Application" icon="gears">
+    Defines the use cases through interfaces and orchestrates them in service implementations.
+
+    **What lives here:**
+    - Service interfaces: `ICompraServices`, `IDetalleCompraServices`, `IUserServices`, `IUnitOfWork`
+    - Concrete service classes: `CompraServices`, `DetalleCompraServices`, `UserServices`, `UnitOfWork`
+
+    The Application layer depends on Domain only. It never imports EF Core, SQL Server connection strings, or anything infrastructure-specific — those concerns are injected at runtime through the interfaces.
+  </Accordion>
+
+  <Accordion title="Infrastructure.Data — CleanArchitecture.Infraestructure.Data" icon="hard-drive">
+    Implements the persistence side of the Application interfaces using Entity Framework Core.
+
+    **What lives here:**
+    - `BdempresaContext` — the EF Core `DbContext` with `DbSet<Compra>`, `DbSet<DetalleCompra>`, and `DbSet<Users>`
+    - Fluent API model configuration (table names, column types, max lengths, FK constraints)
+    - Repository implementations
+
+    This project is the only place that knows about SQL Server. Swapping to PostgreSQL would require changes only here.
+  </Accordion>
+
+  <Accordion title="Infrastructure.IoC — CleanArchitecture.Infraestructure.IoC" icon="plug">
+    Wires the dependency graph. The single static method `DependencyContainer.RegisterServices` is called from `Program.cs` during application startup.
+
+    ```csharp DependencyContainer.cs
+    public static void RegisterServices(
+        IServiceCollection services,
+        IConfiguration configuration)
+    {
+        services.AddTransient<IUnitOfWork>(options =>
+            new UnitOfWork(
+                new BdempresaContext(
+                    new DbContextOptionsBuilder<BdempresaContext>()
+                        .UseSqlServer(configuration
+                            .GetConnectionString("ConnectionSqlServer"))
+                        .Options),
+                configuration.GetConnectionString("ConnectionSqlServer")));
+    }
+    ```
+
+    Registering `IUnitOfWork` as `Transient` means a fresh instance (and a fresh `BdempresaContext`) is created for each HTTP request, which avoids EF Core tracking conflicts across concurrent requests.
+  </Accordion>
+
+  <Accordion title="MinimalApi — CleanArchitecture.MinimalApi" icon="arrow-up-right-from-square">
+    The outermost ring and the only executable project. It is the HTTP entry point. Route handlers receive `IUnitOfWork` from the DI container and delegate all logic to the appropriate service method.
+
+    The API project calls `DependencyContainer.RegisterServices` in `Program.cs` and then maps routes. It has no knowledge of EF Core, `BdempresaContext`, or any concrete infrastructure type.
+  </Accordion>
+</AccordionGroup>
+
+## Key interfaces
+
+### IUnitOfWork
+
+`IUnitOfWork` is the single surface area the API project uses to access all business operations. It aggregates the three service interfaces and provides transaction control.
+
+```csharp CleanArchitecture.Application/Interfaces/IUnitOfWork.cs
+public interface IUnitOfWork
+{
+    ICompraServices compraServices { get; }
+    IUserServices userServices { get; }
+    IDetalleCompraServices detalleCompraServices { get; }
+
+    Task<int> CommitAsync();
+    IDbContextTransaction BeginTransaction();
+}
+```
+
+A route handler that needs to create a purchase and its line items will call `BeginTransaction()`, write through `compraServices` and `detalleCompraServices`, then call `CommitAsync()` — all without importing a single infrastructure type.
+
+### ICompraServices
+
+```csharp CleanArchitecture.Application/Interfaces/ICompraServices.cs
+public interface ICompraServices
+{
+    Task<List<Compra>> ListaBusquedaCompra(
+        string? numeroDocumento,
+        string? razonSocial);
+
+    Task<int> Insert(Compra compra);
+    void UpdateFieldsSave(Compra compra);
+    Task Delete(int id);
+}
+```
+
+<Tip>
+  `UpdateFieldsSave` is synchronous because it only marks the entity as modified in the EF Core change tracker. The actual database write happens when `IUnitOfWork.CommitAsync()` is called.
+</Tip>
+
+## Dependency flow
+
+```
+MinimalApi
+  └── depends on → IUnitOfWork  (Application)
+                       └── ICompraServices, IDetalleCompraServices, IUserServices
+                                ↑ implemented by
+                       Infraestructure.Data (CompraServices, etc.)
+                                ↑ context provided by
+                       BdempresaContext (EF Core → SQL Server)
+                                ↑ registered by
+                       Infraestructure.IoC (DependencyContainer)
+```
+
+<Note>
+  The arrows above represent "depends on" relationships, not "knows about". `MinimalApi` only knows about `IUnitOfWork`. It never imports `BdempresaContext` or any `Infraestructure.*` namespace directly.
+</Note>
+
+## Unit of Work implementation
+
+`UnitOfWork` is the concrete class registered against `IUnitOfWork`. It holds the shared `BdempresaContext` and instantiates each service, passing the context where EF Core access is needed.
+
+```csharp CleanArchitecture.Application/Services/UnitOfWork.cs
+public class UnitOfWork : IUnitOfWork
+{
+    private readonly BdempresaContext _context;
+
+    public UnitOfWork(BdempresaContext context, string connectionString)
+    {
+        _context = context;
+        userServices = new UserServices(connectionString);
+        compraServices = new CompraServices(context);
+        detalleCompraServices = new DetalleCompraServices(context, connectionString);
+    }
+
+    public ICompraServices compraServices { get; private set; }
+    public IUserServices userServices { get; private set; }
+    public IDetalleCompraServices detalleCompraServices { get; private set; }
+
+    public async Task<int> CommitAsync()
+        => await _context.SaveChangesAsync();
+
+    public IDbContextTransaction BeginTransaction()
+        => _context.Database.BeginTransaction(IsolationLevel.ReadUncommitted);
+}
+```
+
+`UserServices` receives a raw connection string rather than `BdempresaContext` because user validation uses ADO.NET directly — a common pattern when stored procedures or raw SQL outperform EF Core for specific queries.

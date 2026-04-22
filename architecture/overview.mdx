@@ -1,0 +1,78 @@
+---
+title: "Application architecture overview"
+description: "A high-level look at the fullstack .NET 7 and Angular 15 application built on Clean Architecture principles with SQL Server persistence."
+---
+
+This application is a fullstack purchase management system. The Angular 15 frontend communicates with a .NET 7 Minimal API backend that enforces Clean Architecture layering — keeping business logic independent of infrastructure concerns and the web framework.
+
+## Layer diagram
+
+```
+┌─────────────────────────────────────────────┐
+│           Angular 15 Frontend               │
+│   (HTTP client → REST endpoints)            │
+└─────────────────────┬───────────────────────┘
+                      │ HTTP / JSON
+┌─────────────────────▼───────────────────────┐
+│         CleanArchitecture.MinimalApi         │
+│   (.NET 7 Minimal API — entry point)        │
+└──────────┬──────────────────────────────────┘
+           │ IUnitOfWork (DI)
+┌──────────▼──────────────────────────────────┐
+│       CleanArchitecture.Application          │
+│   (interfaces + service orchestration)      │
+└──────────┬──────────────────────────────────┘
+           │ domain models + interfaces
+┌──────────▼──────────────────────────────────┐
+│         CleanArchitecture.Domain             │
+│   (entities, DTOs — no dependencies)        │
+└─────────────────────────────────────────────┘
+           ▲ implements domain interfaces
+┌──────────┴──────────────────────────────────┐
+│    CleanArchitecture.Infraestructure.Data    │
+│   (EF Core, BdempresaContext, repositories) │
+└──────────┬──────────────────────────────────┘
+           │ registers all services
+┌──────────▼──────────────────────────────────┐
+│     CleanArchitecture.Infraestructure.IoC    │
+│   (DependencyContainer — wires DI graph)    │
+└──────────────────────────────────────────────┘
+           │ SQL Server
+┌──────────▼──────────────────────────────────┐
+│              SQL Server                      │
+│   (Compra, DetalleCompra, Users tables)     │
+└─────────────────────────────────────────────┘
+```
+
+## Technology stack
+
+<CardGroup cols={2}>
+  <Card title="Backend" icon="server">
+    .NET 7 Minimal API with Entity Framework Core and SQL Server. Business logic lives in Application services accessed through `IUnitOfWork`.
+  </Card>
+  <Card title="Frontend" icon="browser">
+    Angular 15 single-page application. Communicates with the API over HTTP using typed service classes and Angular's `HttpClient`.
+  </Card>
+  <Card title="Database" icon="database">
+    SQL Server with three tables: `Compra`, `DetalleCompra`, and `Users`. Schema is managed via EF Core Fluent API in `BdempresaContext`.
+  </Card>
+  <Card title="Authentication" icon="lock">
+    Token-based authentication. The `IUserServices.ValidarUser` method validates credentials and the returned `Users.Token` is used to secure subsequent API calls.
+  </Card>
+</CardGroup>
+
+## Projects in the solution
+
+The solution (`SolutionCleanArchitecture`) contains five C# projects, each with a distinct responsibility:
+
+| Project | Role |
+|---|---|
+| `CleanArchitecture.Domain` | Core entities (`Compra`, `DetalleCompra`, `Users`) and DTOs. Has no dependencies on any other project. |
+| `CleanArchitecture.Application` | Service interfaces (`IUnitOfWork`, `ICompraServices`, etc.) and their concrete implementations. Depends only on Domain. |
+| `CleanArchitecture.Infraestructure.Data` | EF Core `BdempresaContext`, repository implementations, and SQL Server access. Implements Application interfaces. |
+| `CleanArchitecture.Infraestructure.IoC` | `DependencyContainer` class that registers all services with ASP.NET Core's DI container. |
+| `CleanArchitecture.MinimalApi` | The HTTP entry point. Routes map to `IUnitOfWork` service methods. Bootstraps with `DependencyContainer.RegisterServices`. |
+
+<Note>
+  The `MinimalApi` project depends on `Infraestructure.IoC` only for wiring — at runtime it never references concrete infrastructure types directly, only the interfaces defined in `Application`.
+</Note>

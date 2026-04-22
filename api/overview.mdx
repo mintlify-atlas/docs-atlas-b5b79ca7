@@ -1,0 +1,68 @@
+---
+title: "Purchase Manager REST API — endpoints and errors"
+description: "Complete reference for the CleanArchitecture Minimal API — endpoints, authentication, request/response shapes, and standard error codes."
+---
+
+The CleanArchitecture REST API is built with .NET 7 Minimal API. It exposes purchase management and user authentication endpoints, secured with JWT Bearer tokens. All endpoints are served over HTTPS and follow conventional HTTP semantics for method selection and status codes.
+
+## Base URL
+
+The API runs locally by default. The exact port is determined by your Kestrel launch profile — check the console output for the listening URL when you start the API with `dotnet run`.
+
+```
+https://localhost:<PORT>
+```
+
+Swagger UI is available at `https://localhost:<PORT>/swagger` for interactive exploration and manual testing of every endpoint.
+
+<Tip>
+  The Angular frontend is configured to connect from `http://localhost:4200`. CORS is restricted to that origin by default.
+</Tip>
+
+## Endpoints at a glance
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| `POST` | `/Api/Users/ValidateUser` | None | Validate credentials and receive a JWT token |
+| `POST` | `/Api/Purchase/Save` | Bearer | Create a new purchase with line items |
+| `GET` | `/Api/Purchase/List` | Bearer | Search and list purchases |
+| `GET` | `/Api/Purchase/Detail/{id}` | Bearer | Get line-item detail for a purchase |
+| `PUT` | `/Api/Purchase/Update` | Bearer | Update a purchase and its line items |
+| `DELETE` | `/Api/Purchase/Delete/{id}` | Bearer | Delete a purchase and all its line items |
+
+## Authentication
+
+All endpoints except `POST /Api/Users/ValidateUser` require a JWT Bearer token. Obtain a token by posting valid credentials to the validate endpoint, then include it on every subsequent request:
+
+```
+Authorization: Bearer <token>
+```
+
+Tokens expire after **20 minutes**. See the [Authentication](/api/authentication) page for full details.
+
+## Standard response wrapper
+
+Mutating endpoints (`Save`, `Update`, `Delete`) return a `RespuestaTransaccionDto` object on both success and error.
+
+<ResponseField name="Resultado" type="string">
+  On success: the generated record ID and success code `1111`. On error: the error code `0000`.
+</ResponseField>
+
+<ResponseField name="Descripcion" type="string">
+  Human-readable outcome message. `"Transaccion Exitosa"` on success; an error description on failure.
+</ResponseField>
+
+```json
+{
+  "resultado": "El id o codigo generado es : 42 - Codigo Respuesta:1111",
+  "descripcion": "Transaccion Exitosa"
+}
+```
+
+## Standard error responses
+
+| Status | When it occurs |
+|--------|---------------|
+| `400 Bad Request` | Malformed request body, validation failure, or an unhandled server exception |
+| `401 Unauthorized` | Missing or invalid Bearer token on a protected endpoint |
+| `404 Not Found` | Queried resource does not exist or credentials are invalid |

@@ -1,80 +1,131 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: "Get started with the Purchase Manager"
+description: "Clone the repo, configure your database and JWT settings, spin up the .NET 7 API, and run the Angular 15 frontend in under ten minutes."
 ---
 
-## Get started in three steps
+This quickstart walks you through every step needed to run the Purchase Manager locally: setting up the .NET 7 Minimal API backend with SQL Server, then launching the Angular 15 frontend so you can log in and manage purchases right away.
 
-Get your documentation site running locally and make your first customization.
+<Steps>
+  <Step title="Prerequisites">
+    Make sure the following tools are installed before you begin.
 
-### Step 1: Set up your local environment
+    | Tool | Minimum version |
+    |------|----------------|
+    | Node.js | 18.x |
+    | Angular CLI | 15.x (`npm install -g @angular/cli@15`) |
+    | .NET SDK | 7.0 |
+    | SQL Server | 2019 or later (or Azure SQL) |
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
+    <Tip>
+      Verify your versions by running `node -v`, `ng version`, and `dotnet --version` in your terminal.
+    </Tip>
+  </Step>
 
-### Step 2: Deploy your changes
+  <Step title="Clone the repository">
+    ```bash
+    git clone https://github.com/AnthonyPortillaCano/FullstacktNet7Angular15.git
+    cd FullstacktNet7Angular15
+    ```
+  </Step>
 
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+  <Step title="Configure the backend">
+    Open `SolutionCleanArchitecture/CleanArchitecture.MinimalApi/appsettings.json` and update the values for your environment:
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+    ```json appsettings.json
+    {
+      "ConnectionStrings": {
+        "ConnectionSqlServer": "data source=YOUR_SERVER;initial catalog=YOUR_DB;user id=YOUR_USER;password=YOUR_PASSWORD;TrustServerCertificate=True;"
+      },
+      "APP_URL_ANGULAR": "http://localhost:4200",
+      "LOGGER_URL": "https://apiloggerfinal.azurewebsites.net",
+      "Auth": {
+        "Jwt": {
+          "Issuer": "http://localhost:51239/",
+          "Audience": "http://localhost:51239/",
+          "Key": "your_strong_secret_key_here",
+          "TokenExpirationInMinutes": "20"
+        }
+      }
+    }
+    ```
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
+    <Warning>
+      Replace `Key` with a long, random string before running in any shared or production environment. The default value in the repository is not secure.
+    </Warning>
 
-### Step 3: Go live
+    The `APP_URL_ANGULAR` value must match the URL where the Angular dev server is served (default: `http://localhost:4200`). The backend uses this value to configure CORS, so any mismatch will block requests from the frontend.
+  </Step>
 
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
+  <Step title="Run the backend API">
+    Navigate to the Minimal API project and start the server.
 
-## Next steps
+    <CodeGroup>
 
-Now that you have your docs running, explore these key features:
+    ```bash dotnet CLI
+    cd SolutionCleanArchitecture/CleanArchitecture.MinimalApi
+    dotnet run
+    ```
 
-<CardGroup cols={2}>
+    ```bash dotnet watch (auto-reload)
+    cd SolutionCleanArchitecture/CleanArchitecture.MinimalApi
+    dotnet watch run
+    ```
 
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
+    </CodeGroup>
 
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
+    The API listens on `https://localhost:7271` by default.
 
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
+    <Note>
+      Swagger UI is available at `https://localhost:7271/swagger`. Use it to explore all endpoints and send authenticated requests by clicking **Authorize** and supplying a Bearer token obtained from the login endpoint.
+    </Note>
+  </Step>
 
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
+  <Step title="Configure the Angular frontend">
+    Open `crud-app-web/src/environments/environment.development.ts` and confirm the `apiUrl` points to your running backend:
 
-</CardGroup>
+    ```typescript environment.development.ts
+    export const environment = {
+      production: false,
+      apiUrl: "https://localhost:7271"
+    };
+    ```
 
-<Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
-</Note>
+    If you changed the backend port or are running behind a reverse proxy, update `apiUrl` to match. The production environment file (`environment.ts`) points to the deployed Azure endpoint and does not need to be changed for local development.
+  </Step>
+
+  <Step title="Run the frontend">
+    Install dependencies and start the Angular dev server.
+
+    <CodeGroup>
+
+    ```bash npm
+    cd crud-app-web
+    npm install
+    npm start
+    ```
+
+    ```bash Angular CLI
+    cd crud-app-web
+    npm install
+    ng serve
+    ```
+
+    </CodeGroup>
+
+    The app is served at `http://localhost:4200`.
+  </Step>
+
+  <Step title="Log in and explore">
+    Open `http://localhost:4200` in your browser and log in with your SQL Server database credentials.
+
+    Once authenticated, you can:
+
+    - Create, read, update, and delete purchase records
+    - Export data to PDF or Excel using the built-in toolbar actions
+    - Browse and test the API directly via Swagger UI at `https://localhost:7271/swagger`
+
+    <Tip>
+      JWT tokens expire after 20 minutes by default. Increase `TokenExpirationInMinutes` in `appsettings.json` during development to avoid frequent re-logins.
+    </Tip>
+  </Step>
+</Steps>

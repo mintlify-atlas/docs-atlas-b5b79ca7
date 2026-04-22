@@ -1,23 +1,11 @@
 {
-  "$schema": "https://mintlify.com/docs.json",
-  "name": "Fullstack .NET 7 & Angular 15 Purchase Manager",
+  "projectType": "saas",
+  "projectName": "Fullstack .NET 7 & Angular 15 Purchase Manager",
+  "projectDescription": "A full-stack purchase management application built with .NET 7 Minimal API (Clean Architecture) on the backend and Angular 15 on the frontend, featuring JWT authentication, CRUD operations, and PDF/Excel export.",
   "theme": "luma",
-  "colors": {
-    "primary": "#1565C0",
-    "light": "#42A5F5",
-    "dark": "#0D47A1"
-  },
-  "navbar": {
-    "primary": {
-      "type": "github",
-      "href": "https://github.com/AnthonyPortillaCano/FullstacktNet7Angular15"
-    }
-  },
-  "footer": {
-    "socials": {
-      "github": "https://github.com/AnthonyPortillaCano/FullstacktNet7Angular15"
-    }
-  },
+  "primaryColor": "#1565C0",
+  "lightColor": "#42A5F5",
+  "darkColor": "#0D47A1",
   "navigation": {
     "tabs": [
       {
@@ -84,5 +72,25 @@
         ]
       }
     ]
-  }
+  },
+  "keyFeatures": [
+    "JWT-based authentication with configurable token expiration",
+    "Full CRUD operations for purchase (Compra) management",
+    "Clean Architecture with Domain, Application, Infrastructure, and API layers",
+    "Angular Material UI with sortable, paginated data tables",
+    "PDF and Excel export using jsPDF and XLSX libraries",
+    "Unit of Work and Repository patterns for data access",
+    "SQL Server database via Entity Framework Core",
+    "CORS-configured API with Swagger/OpenAPI documentation",
+    "Route guards and HTTP interceptors for secure navigation",
+    "External logging via Azure-hosted logger API"
+  ],
+  "publicApiSurface": [
+    "POST /Api/Users/ValidateUser",
+    "POST /Api/Purchase/Save",
+    "GET /Api/Purchase/List",
+    "GET /Api/Purchase/Detail/{id}",
+    "PUT /Api/Purchase/Update",
+    "DELETE /Api/Purchase/Delete/{id}"
+  ]
 }

@@ -1,0 +1,96 @@
+---
+title: "JWT authentication in the backend API"
+description: "How to get a JWT token from the validate endpoint, attach it as a Bearer credential, and understand expiration and re-authentication in the backend."
+---
+
+The backend uses JSON Web Tokens (JWT) with the Bearer scheme to protect its endpoints. You obtain a token by validating your credentials at the login endpoint, then include that token in the `Authorization` header of every subsequent request.
+
+## Obtain a token
+
+Send a `POST` request to `/Api/Users/ValidateUser` with your email and password in the request body.
+
+<CodeGroup>
+
+```bash curl
+curl -X POST https://localhost:PORT/Api/Users/ValidateUser \
+  -H "Content-Type: application/json" \
+  -d '{"email": "user@example.com", "password": "yourpassword"}'
+```
+
+```json request body
+{
+  "email": "user@example.com",
+  "password": "yourpassword"
+}
+```
+
+</CodeGroup>
+
+### Successful response
+
+If the credentials are valid, the API returns `200 OK` with the user object and a `token` field:
+
+```json
+{
+  "email": "user@example.com",
+  "password": "yourpassword",
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+```
+
+Copy the value of `token` — you will need it for all protected requests.
+
+### Failed response
+
+If the credentials are not found in the database, the API returns `404 Not Found`. On a server error, it returns `400 Bad Request`.
+
+## Use the token in requests
+
+Include the token as a Bearer token in the `Authorization` header:
+
+```bash
+curl https://localhost:PORT/Api/Purchases \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+```
+
+Every protected endpoint validates this header on each request. The Swagger UI also supports Bearer authentication: click **Authorize** at the top of the page and paste your token.
+
+## Token contents and expiration
+
+The token is signed with HMAC-SHA256 and contains the following claim:
+
+| Claim | Value |
+|-------|-------|
+| `email` | The authenticated user's email address |
+
+This is the relevant section of `TokenService.cs` that builds the token:
+
+```csharp
+var claims = new[]
+{
+    new Claim(ClaimTypes.Email, users.Email),
+};
+var token = new JwtSecurityToken(
+    _configuration["Auth:Jwt:Issuer"],
+    _configuration["Auth:Jwt:Audience"],
+    claims,
+    expires: DateTime.Now.AddMinutes(
+        Convert.ToDouble(_configuration["Auth:Jwt:TokenExpirationInMinutes"])
+    ),
+    signingCredentials: creds
+);
+```
+
+Tokens expire **20 minutes** after they are issued by default. You can change the expiration period via the `Auth:Jwt:TokenExpirationInMinutes` setting in `appsettings.json`.
+
+<Note>
+  Token expiration uses `ClockSkew = TimeSpan.Zero`, so tokens expire exactly at the configured time with no tolerance window.
+</Note>
+
+## When a token is missing or expired
+
+Requests to protected endpoints without a valid token receive a `401 Unauthorized` response. Re-authenticate by calling `POST /Api/Users/ValidateUser` again to obtain a new token.
+
+<Tip>
+  If you are building a frontend client, store the token in memory (not `localStorage`) and refresh it by re-authenticating before it expires to keep your session active.
+</Tip>

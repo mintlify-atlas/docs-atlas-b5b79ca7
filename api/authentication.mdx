@@ -1,0 +1,119 @@
+---
+title: "Authenticate API requests with JWT"
+description: "Call POST /Api/Users/ValidateUser to get a JWT Bearer token, then include it in the Authorization header on every subsequent request."
+---
+
+The API uses JSON Web Tokens (JWT) for authentication. Call `POST /Api/Users/ValidateUser` with your email and password to receive a token. Include that token as a Bearer credential on all subsequent requests. Tokens expire after 20 minutes, after which you must re-authenticate.
+
+<Note>
+  `POST /Api/Users/ValidateUser` is the only endpoint that does not require a token. Every other endpoint returns `401 Unauthorized` without a valid Bearer header.
+</Note>
+
+## Step 1 — Obtain a token
+
+### POST /Api/Users/ValidateUser
+
+Send your credentials in the request body. The response includes the full `Users` object with a `Token` field.
+
+#### Request body
+
+<ParamField body="Email" type="string" required>
+  The registered email address for the account.
+</ParamField>
+
+<ParamField body="Password" type="string" required>
+  The account password.
+</ParamField>
+
+<CodeGroup>
+
+```bash cURL
+curl --request POST \
+  --url https://localhost:PORT/Api/Users/ValidateUser \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "email": "user@example.com",
+    "password": "yourpassword"
+  }'
+```
+
+```json Request body
+{
+  "email": "user@example.com",
+  "password": "yourpassword"
+}
+```
+
+</CodeGroup>
+
+#### Response
+
+On success the API returns `200 OK` with the full `Users` object. The `Token` field contains the JWT string to use in subsequent requests.
+
+<ResponseField name="Id" type="integer">
+  Unique identifier for the user record.
+</ResponseField>
+
+<ResponseField name="Email" type="string">
+  The user's email address.
+</ResponseField>
+
+<ResponseField name="FullName" type="string">
+  The user's full name.
+</ResponseField>
+
+<ResponseField name="DocumentNumber" type="string">
+  The user's document or ID number.
+</ResponseField>
+
+<ResponseField name="Address" type="string">
+  The user's address.
+</ResponseField>
+
+<ResponseField name="PhoneNumber" type="string">
+  The user's phone number.
+</ResponseField>
+
+<ResponseField name="Token" type="string">
+  Signed JWT Bearer token. Valid for **20 minutes** from the time of issuance.
+</ResponseField>
+
+```json 200 OK
+{
+  "id": 1,
+  "fullName": "Jane Smith",
+  "documentNumber": "12345678",
+  "email": "user@example.com",
+  "phoneNumber": "+1-555-0100",
+  "address": "123 Main Street",
+  "password": null,
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+```
+
+If credentials are invalid the API returns `404 Not Found` with no body.
+
+## Step 2 — Attach the token to requests
+
+Include the token in the `Authorization` header of every subsequent request using the `Bearer` scheme.
+
+```bash cURL
+curl --request GET \
+  --url https://localhost:PORT/Api/Purchase/List \
+  --header 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
+```
+
+## Token expiration and re-authentication
+
+Tokens are valid for **20 minutes** (configurable in `appsettings.json` under `Auth:Jwt:TokenExpirationInMinutes`).
+
+<Warning>
+  When a token expires, protected endpoints return `401 Unauthorized`. Discard the old token and call `POST /Api/Users/ValidateUser` again to obtain a fresh one.
+</Warning>
+
+When you receive a `401` response:
+
+1. Call `POST /Api/Users/ValidateUser` with your credentials.
+2. Extract the new `Token` value from the response.
+3. Replace the expired token in your `Authorization` header.
+4. Retry the original request.

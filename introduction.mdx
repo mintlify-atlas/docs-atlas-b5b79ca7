@@ -1,0 +1,70 @@
+---
+title: "Fullstack .NET 7 & Angular 15 Purchase Manager"
+description: "Full-stack purchase management built with .NET 7 Minimal API (Clean Architecture) on the backend and Angular 15 with Angular Material on the frontend."
+---
+
+The Fullstack .NET 7 & Angular 15 Purchase Manager is a complete, production-ready application for managing purchases (compras) and their line items. The backend exposes a secure REST API built on .NET 7 Minimal API following Clean Architecture principles, while the Angular 15 frontend provides a polished Material Design interface with real-time search, inline editing, and export capabilities.
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Get both the backend API and Angular frontend running locally in minutes.
+  </Card>
+  <Card title="Architecture" icon="layer-group" href="/architecture/overview">
+    Understand the Clean Architecture layers and how the project is structured.
+  </Card>
+  <Card title="API Reference" icon="code" href="/api/overview">
+    Explore every REST endpoint with request and response schemas.
+  </Card>
+  <Card title="Purchase Management" icon="cart-shopping" href="/frontend/purchase-management">
+    Learn how to create, search, edit, and delete purchases in the UI.
+  </Card>
+</CardGroup>
+
+## Key features
+
+<CardGroup cols={2}>
+  <Card title="JWT Authentication" icon="lock">
+    Stateless token-based auth with configurable expiration. The Angular frontend automatically attaches tokens to every request via an HTTP interceptor.
+  </Card>
+  <Card title="Full CRUD" icon="pen-to-square">
+    Create, list, view, update, and delete purchases and their line items through a searchable, paginated Material table.
+  </Card>
+  <Card title="Clean Architecture" icon="sitemap">
+    Strict separation between Domain, Application, Infrastructure, and API layers. Swappable data providers and testable service interfaces.
+  </Card>
+  <Card title="PDF & Excel Export" icon="file-export">
+    Export purchase lists to PDF using jsPDF AutoTable or to Excel using the XLSX library directly from the browser.
+  </Card>
+</CardGroup>
+
+## How it works
+
+<Steps>
+  <Step title="Authenticate">
+    Log in with your email and password. The backend validates credentials against the SQL Server database and returns a short-lived JWT token.
+  </Step>
+  <Step title="Browse purchases">
+    Search and filter the purchase list by document number or company name. The paginated table updates as you type.
+  </Step>
+  <Step title="Create or edit a purchase">
+    Open the purchase form to add a new purchase with one or more line items, or edit an existing one. Changes are persisted through the REST API.
+  </Step>
+  <Step title="Export data">
+    Download the current purchase list as a formatted PDF or Excel file with a single click.
+  </Step>
+</Steps>
+
+## Tech stack
+
+| Layer | Technology |
+|---|---|
+| Backend API | .NET 7 Minimal API |
+| Architecture | Clean Architecture (Domain / Application / Infrastructure / IoC) |
+| ORM | Entity Framework Core |
+| Database | SQL Server (Azure SQL or local) |
+| Authentication | JWT Bearer tokens |
+| Frontend | Angular 15 |
+| UI library | Angular Material 15 |
+| HTTP client | Angular `HttpClient` with interceptors |
+| Export | jsPDF, jsPDF-AutoTable, XLSX |
+| API docs | Swagger / OpenAPI |

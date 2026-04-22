@@ -1,0 +1,150 @@
+---
+title: "Configure the backend API settings"
+description: "Reference for every setting in appsettings.json: database connection string, CORS origin, logger URL, and JWT issuer, audience, key, and expiration."
+---
+
+All runtime configuration lives in `CleanArchitecture.MinimalApi/appsettings.json`. You must set the database connection string before the application can start. The remaining settings have working defaults for local development that you should review and change for production.
+
+## Full settings file
+
+This is the complete `appsettings.json` with the default values from the repository:
+
+```json
+{
+  "ConnectionStrings": {
+    "ConnectionSqlServer": "data source = tcp:srv2023.database.windows.net,1433; initial catalog = BDEmpresa; user id = prueba; password = Pa$$w0rd2019;TrustServerCertificate=True;"
+  },
+  "APP_URL_ANGULAR": "http://localhost:4200",
+  "LOGGER_URL": "https://apiloggerfinal.azurewebsites.net",
+  "Auth": {
+    "Jwt": {
+      "Issuer": "http://localhost:51239/",
+      "Audience": "http://localhost:51239/",
+      "Key": "clave_secreta_para_cifrado#2023",
+      "TokenExpirationInMinutes": "20"
+    }
+  }
+}
+```
+
+<Warning>
+  The repository contains a hardcoded JWT signing key (`"clave_secreta_para_cifrado#2023"`) and a real database password. Never commit credentials to source control and never use these values in a production environment. Replace both before deploying.
+</Warning>
+
+## Settings reference
+
+### `ConnectionStrings.ConnectionSqlServer`
+
+The ADO.NET connection string for your SQL Server database. The application uses Entity Framework Core with this connection string to connect on startup.
+
+```json
+"ConnectionStrings": {
+  "ConnectionSqlServer": "data source=YOUR_SERVER;initial catalog=YOUR_DB;user id=YOUR_USER;password=YOUR_PASSWORD;TrustServerCertificate=True;"
+}
+```
+
+Set `TrustServerCertificate=True` for local SQL Server instances that use a self-signed certificate. Remove it or set it to `False` when connecting to a properly configured production server.
+
+---
+
+### `APP_URL_ANGULAR`
+
+The origin of the Angular frontend. The API uses this value to configure its CORS policy, allowing only this origin to make cross-origin requests.
+
+```json
+"APP_URL_ANGULAR": "http://localhost:4200"
+```
+
+If you run the Angular dev server on a different port, or deploy the frontend to a different URL, update this value to match.
+
+---
+
+### `LOGGER_URL`
+
+The base URL of the external logging service. The API posts error messages to `{LOGGER_URL}/Logs/ObtenerError` whenever an unhandled exception occurs in an endpoint handler.
+
+```json
+"LOGGER_URL": "https://apiloggerfinal.azurewebsites.net"
+```
+
+Point this at your own logging service endpoint for production deployments.
+
+---
+
+### `Auth:Jwt:Issuer`
+
+The expected issuer claim in issued and validated tokens. Set this to the URL your backend is served from.
+
+```json
+"Auth": {
+  "Jwt": {
+    "Issuer": "http://localhost:51239/"
+  }
+}
+```
+
+---
+
+### `Auth:Jwt:Audience`
+
+The expected audience claim in issued and validated tokens. In this project it is set to the same value as `Issuer`.
+
+```json
+"Auth": {
+  "Jwt": {
+    "Audience": "http://localhost:51239/"
+  }
+}
+```
+
+---
+
+### `Auth:Jwt:Key`
+
+The secret key used to sign and verify JWT tokens with HMAC-SHA256. This must be kept private.
+
+```json
+"Auth": {
+  "Jwt": {
+    "Key": "your-long-random-secret-key"
+  }
+}
+```
+
+<Warning>
+  Use a randomly generated string of at least 32 characters. The default value in the repository is a known string that provides no security — replace it before deploying.
+</Warning>
+
+---
+
+### `Auth:Jwt:TokenExpirationInMinutes`
+
+How long (in minutes) an issued token remains valid. The default is `20` minutes.
+
+```json
+"Auth": {
+  "Jwt": {
+    "TokenExpirationInMinutes": "20"
+  }
+}
+```
+
+Clients must re-authenticate after a token expires. See [JWT authentication](/backend/authentication) for details.
+
+---
+
+## Production configuration
+
+<Tip>
+  Avoid storing secrets in `appsettings.json` for production deployments. Instead, use environment variables (which ASP.NET Core reads automatically using the `__` separator for nested keys, e.g., `Auth__Jwt__Key`) or a secrets manager such as Azure App Configuration or Azure Key Vault. This keeps credentials out of your source repository and makes rotation easier.
+</Tip>
+
+Example environment variable names that override the settings above:
+
+| Setting | Environment variable |
+|---------|----------------------|
+| `ConnectionStrings:ConnectionSqlServer` | `ConnectionStrings__ConnectionSqlServer` |
+| `APP_URL_ANGULAR` | `APP_URL_ANGULAR` |
+| `LOGGER_URL` | `LOGGER_URL` |
+| `Auth:Jwt:Key` | `Auth__Jwt__Key` |
+| `Auth:Jwt:TokenExpirationInMinutes` | `Auth__Jwt__TokenExpirationInMinutes` |

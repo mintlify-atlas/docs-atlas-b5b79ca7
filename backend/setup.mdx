@@ -1,0 +1,83 @@
+---
+title: "Run the .NET 7 backend API locally"
+description: "Step-by-step guide to running the Clean Architecture .NET 7 Minimal API locally, connected to SQL Server, and verified through the Swagger UI."
+---
+
+The backend is a .NET 7 Minimal API built with Clean Architecture. It exposes endpoints for user authentication and purchase management, uses Entity Framework Core with SQL Server, and documents itself through a Swagger UI available at `/swagger`.
+
+## Prerequisites
+
+Before you start, make sure you have the following installed and available:
+
+- **.NET 7 SDK** — [download from Microsoft](https://dotnet.microsoft.com/en-us/download/dotnet/7.0)
+- **SQL Server** — a local instance or an Azure SQL Database
+- **Git** — to clone the repository
+
+## Steps
+
+<Steps>
+  <Step title="Navigate to the solution directory">
+    Clone the repository (if you haven't already) and change into the solution folder:
+
+    ```bash
+    git clone https://github.com/AnthonyPortillaCano/FullstacktNet7Angular15.git
+    cd FullstacktNet7Angular15/SolutionCleanArchitecture
+    ```
+  </Step>
+
+  <Step title="Configure the connection string">
+    Open `CleanArchitecture.MinimalApi/appsettings.json` and replace the value of `ConnectionStrings.ConnectionSqlServer` with your own SQL Server connection string:
+
+    ```json
+    {
+      "ConnectionStrings": {
+        "ConnectionSqlServer": "data source=YOUR_SERVER;initial catalog=YOUR_DB;user id=YOUR_USER;password=YOUR_PASSWORD;TrustServerCertificate=True;"
+      }
+    }
+    ```
+
+    <Note>
+      See [Configure the backend API settings](/backend/configuration) for a full description of every setting in `appsettings.json`.
+    </Note>
+  </Step>
+
+  <Step title="Run the API">
+    From the `SolutionCleanArchitecture/` directory, run:
+
+    ```bash
+    dotnet run --project CleanArchitecture.MinimalApi
+    ```
+
+    The console will print the listening URLs once the application starts. Look for a line similar to:
+
+    ```
+    Now listening on: https://localhost:7123
+    ```
+  </Step>
+
+  <Step title="Verify with Swagger">
+    Open your browser and go to:
+
+    ```
+    https://localhost:PORT/swagger
+    ```
+
+    Replace `PORT` with the port printed in the previous step. You should see the Swagger UI listing all available endpoints. Swagger is always enabled in this project (not just in development mode).
+
+    <Note>
+      Your browser may warn about a self-signed certificate on first load. You can safely proceed for local development.
+    </Note>
+  </Step>
+</Steps>
+
+## CORS and the Angular frontend
+
+The API restricts cross-origin requests to the origin defined in the `APP_URL_ANGULAR` setting. The default value is `http://localhost:4200`, which matches the Angular dev server. If you run the frontend on a different port or host, update that value in `appsettings.json` to match.
+
+```json
+{
+  "APP_URL_ANGULAR": "http://localhost:4200"
+}
+```
+
+See [Configure the backend API settings](/backend/configuration) for details.

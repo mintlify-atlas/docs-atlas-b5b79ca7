@@ -1,0 +1,157 @@
+---
+title: "SQL Server data model and entity definitions"
+description: "SQL Server schema for the three tables — Compra, DetalleCompra, and Users — including field types, constraints, and entity relationships."
+---
+
+The SQL Server database (`BdEmpresa`) contains three tables managed by Entity Framework Core through `BdempresaContext`. The `Compra` table stores purchase headers, `DetalleCompra` stores the line items for each purchase, and `Users` stores authenticated user records. Schema constraints are declared using the EF Core Fluent API — no separate migration scripts are needed.
+
+## Entities
+
+### Compra (Purchase header)
+
+Represents a purchase transaction. One `Compra` record aggregates one or more `DetalleCompra` line items.
+
+| Field | C# type | SQL type | Constraints |
+|---|---|---|---|
+| `Id` | `int` | `int IDENTITY` | Primary key, auto-increment |
+| `NumeroDocumento` | `string?` | `varchar(10)` | Nullable |
+| `RazonSocial` | `string?` | `varchar(60)` | Nullable |
+| `Total` | `decimal?` | `decimal(10,2)` | Nullable |
+| `DetalleCompras` | `ICollection<DetalleCompra>` | — | Navigation property (one-to-many) |
+
+```csharp CleanArchitecture.Domain/Models/Compra.cs
+public partial class Compra
+{
+    public Compra()
+    {
+        DetalleCompras = new HashSet<DetalleCompra>();
+    }
+
+    public int Id { get; set; }
+    public string? NumeroDocumento { get; set; }
+    public string? RazonSocial { get; set; }
+    public decimal? Total { get; set; }
+    public virtual ICollection<DetalleCompra> DetalleCompras { get; set; }
+}
+```
+
+---
+
+### DetalleCompra (Purchase line item)
+
+Represents a single product line within a purchase. Each record belongs to exactly one `Compra` via the `FK_IdVenta` foreign key.
+
+| Field | C# type | SQL type | Constraints |
+|---|---|---|---|
+| `Id` | `int` | `int IDENTITY` | Primary key |
+| `IdCompra` | `int?` | `int` | Foreign key → `Compra.Id` (FK_IdVenta) |
+| `Producto` | `string?` | `varchar(60)` | Nullable |
+| `Precio` | `decimal?` | `decimal(10,2)` | Nullable |
+| `Cantidad` | `int?` | `int` | Nullable |
+| `Total` | `decimal?` | `decimal(10,2)` | Nullable |
+| `OrdenSecuencia` | `int?` | `int` | Nullable, display sort order |
+| `IdCompraNavigation` | `Compra?` | — | Navigation property (many-to-one) |
+
+```csharp CleanArchitecture.Domain/Models/DetalleCompra.cs
+public partial class DetalleCompra
+{
+    public int Id { get; set; }
+    public int? IdCompra { get; set; }
+    public string? Producto { get; set; }
+    public decimal? Precio { get; set; }
+    public int? Cantidad { get; set; }
+    public decimal? Total { get; set; }
+    public int? OrdenSecuencia { get; set; }
+    public virtual Compra? IdCompraNavigation { get; set; }
+}
+```
+
+---
+
+### Users
+
+Stores authenticated users. The `Token` field holds a JWT or similar token that is returned after a successful login and used to authorise subsequent requests.
+
+| Field | C# type | SQL type | Constraints |
+|---|---|---|---|
+| `Id` | `int` | `int` | Primary key (PK\_\_Users\_\_3214EC074104FB25) |
+| `FullName` | `string?` | `varchar(100)` | Nullable |
+| `DocumentNumber` | `string?` | `varchar(20)` | Nullable |
+| `Email` | `string?` | `varchar(100)` | Nullable |
+| `PhoneNumber` | `string?` | `varchar(20)` | Nullable |
+| `Address` | `string?` | `varchar(200)` | Nullable |
+| `Password` | `string?` | `varchar(128)` | Nullable |
+| `Token` | `string?` | `varchar(200)` | Nullable, populated on login |
+
+```csharp CleanArchitecture.Domain/Models/Users.cs
+public class Users
+{
+    public int Id { get; set; }
+    public string? FullName { get; set; }
+    public string? DocumentNumber { get; set; }
+    public string? Email { get; set; }
+    public string? PhoneNumber { get; set; }
+    public string? Address { get; set; }
+    public string? Password { get; set; }
+    public string? Token { get; set; }
+}
+```
+
+---
+
+## Entity relationships
+
+```
+Compra (1)
+  │
+  │ FK_IdVenta  (DetalleCompra.IdCompra → Compra.Id)
+  │
+  └──< DetalleCompra (many)
+```
+
+The relationship is declared in `BdempresaContext.OnModelCreating`:
+
+```csharp CleanArchitecture.Infraestructure.Data/Context/BdempresaContext.cs
+entity.HasOne(d => d.IdCompraNavigation)
+      .WithMany(p => p.DetalleCompras)
+      .HasForeignKey(d => d.IdCompra)
+      .HasConstraintName("FK_IdVenta");
+```
+
+EF Core enforces referential integrity through this named constraint. Deleting a `Compra` without first removing its `DetalleCompra` rows will raise a foreign key violation — the `IDetalleCompraServices.DeleteList(int idCompra)` method exists specifically to handle bulk removal of line items before the parent is deleted.
+
+## DetalleComprasDto
+
+The `DetalleComprasDto` flattens the joined `Compra` + `DetalleCompra` data into a single object for API responses. It avoids exposing navigation properties across the HTTP boundary.
+
+```csharp CleanArchitecture.Domain/Dtos/DetalleComprasDto.cs
+public class DetalleComprasDto
+{
+    public int Id { get; set; }
+    public string NumeroDocumento { get; set; }
+    public string RazonSocial { get; set; }
+    public decimal TotalCompra { get; set; }
+    public int IdCompra { get; set; }
+    public int OrdenSecuencia { get; set; }
+    public int Cantidad { get; set; }
+    public string Producto { get; set; }
+    public decimal Precio { get; set; }
+    public decimal Total { get; set; }
+}
+```
+
+<Note>
+  `IDetalleCompraServices.ObtenerDetalleCompra(int idCompra)` returns `List<DetalleComprasDto>` rather than raw `DetalleCompra` entities so the query can join across tables and return a shaped result without triggering lazy loading.
+</Note>
+
+## EF Core DbContext registration
+
+All three `DbSet` properties are registered on `BdempresaContext`:
+
+```csharp CleanArchitecture.Infraestructure.Data/Context/BdempresaContext.cs
+public virtual DbSet<Compra> Compras { get; set; }
+public virtual DbSet<DetalleCompra> DetalleCompras { get; set; }
+public virtual DbSet<Users> Users { get; set; }
+```
+
+The context is instantiated once per HTTP request by `DependencyContainer.RegisterServices` using the `ConnectionSqlServer` connection string from `appsettings.json`.

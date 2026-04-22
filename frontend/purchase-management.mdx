@@ -1,0 +1,174 @@
+---
+title: "Create, search, and manage purchases"
+description: "How to search and filter the purchase list, create purchases with line items, edit existing records, and delete purchases using the Angular UI."
+---
+
+The purchase management section is the core of the application. It provides a searchable, paginated list of purchases and a registration form where you can compose a purchase header with one or more line items. All data is persisted through the backend API.
+
+## Purchase list
+
+The list page displays all purchases in an Angular Material table. It loads automatically when the page opens, showing every purchase in the system.
+
+**Displayed columns:** `id`, `numeroDocumento`, `razonSocial`, `total`, edit action, delete action.
+
+### Searching
+
+Two search fields appear above the table:
+
+- **NumeroDocumento** — filter by document number
+- **RazonSocial** — filter by company name
+
+Fill in one or both fields and click **Buscar**. Click **Limpiar** to reset both fields and reload the full list.
+
+<Note>
+  The search is performed server-side. Both parameters are passed as query strings to `GET /Api/Purchase/List`. Leaving a field blank passes an empty string, which the backend treats as no filter on that column.
+</Note>
+
+The table is paginated using Angular Material's `MatPaginator`.
+
+## Creating a purchase
+
+Click **Nuevo** (or navigate to the registration form) to open the purchase creation screen.
+
+<Steps>
+  <Step title="Fill in the purchase header">
+    Complete the required header fields:
+
+    | Field | Description |
+    |-------|-------------|
+    | NumeroDocumento | Document number for the purchase |
+    | RazonSocial | Company or supplier name |
+  </Step>
+
+  <Step title="Add line items">
+    For each item in the purchase, fill in:
+
+    | Field | Description |
+    |-------|-------------|
+    | Producto | Product name |
+    | Precio | Unit price |
+    | Cantidad | Quantity |
+
+    Click **Agregar** to append the item to the detail table. The line total (`precio × cantidad`) is calculated automatically and the running **Total** is updated.
+  </Step>
+
+  <Step title="Save the purchase">
+    Click **Guardar**. A confirmation dialog appears. Confirm to send the purchase to the backend via `POST /Api/Purchase/Save`. On success, you are redirected back to the purchase list.
+
+    <Warning>
+      You must add at least one line item before saving. If the detail table is empty, the form displays the message "El detalle de la compra debe tener registros" and blocks the save.
+    </Warning>
+  </Step>
+</Steps>
+
+## Editing a purchase
+
+Click the edit icon on any row in the purchase list. The registration form loads pre-filled with the purchase header values and the existing line items, fetched via `GET /Api/Purchase/Detail/{id}`.
+
+- **Add items:** Use the same Producto / Precio / Cantidad fields and click **Agregar**.
+- **Remove items:** Click the delete icon on any line item row. A browser confirmation prompt appears before the item is removed from the table.
+- **Save changes:** Click **Editar**. A confirmation dialog appears. Confirm to send the updated purchase via `PUT /Api/Purchase/Update`.
+
+Line items marked for removal during editing are tracked in a separate list and sent to the backend as part of the update payload.
+
+## Deleting a purchase
+
+Click the delete icon on any row in the purchase list. An Angular Material confirmation dialog appears with the message "¿Estas seguro de eliminar la informacion de la compra?".
+
+- **Confirm:** Sends `DELETE /Api/Purchase/Delete/{id}`. On success, a success dialog is shown and the page reloads.
+- **Cancel:** No action is taken.
+
+## Angular service method signatures
+
+All API calls are made through `CompraService`:
+
+```typescript
+// List purchases, optionally filtered by document number and company name
+ListCompras(numeroDocumento: string, razonSocial: string): Observable<Compra[]>
+
+// Create a new purchase with header and line items
+SaveCompras(transaccionCompra: TransaccionCompra): Observable<Respuesta>
+
+// Fetch a single purchase with all its line items by ID
+getCompraPorId(id: number): Observable<EditCompraListaDetalle[]>
+
+// Update an existing purchase
+EditCompras(transaccionCompra: TransaccionCompra): Observable<Respuesta>
+
+// Delete a purchase by ID
+DeleteCompras(id: number): Observable<Respuesta>
+```
+
+## Data models
+
+### `Compra` — purchase summary (list view)
+
+```typescript
+class Compra {
+  id?: number;
+  numeroDocumento?: string;
+  razonSocial?: string;
+  total?: number;
+}
+```
+
+### `ListaDetalleCompra` — line item (create mode)
+
+```typescript
+class ListaDetalleCompra {
+  constructor(
+    public ordenSecuencia: number,
+    public producto: string,
+    public precio: number,
+    public cantidad: number,
+    public total: number
+  ) {}
+}
+```
+
+### `EditCompraListaDetalle` — line item (edit mode)
+
+```typescript
+class EditCompraListaDetalle {
+  constructor(
+    public id: number,
+    public idCompra: number,
+    public ordenSecuencia: number,
+    public numeroDocumento: string,
+    public razonSocial: string,
+    public totalCompra: number,
+    public producto: string,
+    public precio: number,
+    public cantidad: number,
+    public total: number
+  ) {}
+}
+```
+
+### `TransaccionCompra` — full purchase payload (save and update)
+
+```typescript
+class TransaccionCompra {
+  constructor(
+    public id: number,
+    public numeroDocumento: number,
+    public razonSocial: string,
+    public total: number,
+    public detalleCompras: ListaDetalleCompra[],
+    public eliminarDetalleCompra: EliminarCompraListDetalle[]
+  ) {}
+}
+```
+
+`eliminarDetalleCompra` carries the IDs of line items that were removed during editing. On a new purchase this array is empty.
+
+### `Respuesta` — API response
+
+```typescript
+class Respuesta {
+  constructor(
+    public resultado: string,
+    public descripcion: string
+  ) {}
+}
+```
